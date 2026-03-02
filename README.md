@@ -14,8 +14,8 @@ However, in `libapparmor` 4.1.6, `aa_change_hatv()` still writes to the old path
 `/proc/self/attr/current`
 
 For `mod_apparmor`, that mismatch causes `EPERM` during per-request hat switching
-(for example, entering a vhost hat like `datacore.ch`). The website can still
-return HTTP 200, but the expected AppArmor hat isolation is not active.
+(for example, entering a vhost hat). The website can still return HTTP 200, but
+the expected AppArmor hat isolation is not active.
 
 See `BUGS.md` for the full incident details, traces, environment, and upstream
 status.
@@ -168,17 +168,12 @@ actual running service and that workers were fully restarted after `daemon-reloa
 Validated in the incident environment documented in `BUGS.md`:
 
 - OS: Arch Linux
-- Kernel: Linux 6.x with AppArmor 4.x
+- Kernel: Linux 6.18.13 with AppArmor 4.1.6-2
 - AppArmor package: `apparmor 4.1.6-2`
-- `libapparmor`: 4.1.6 (from `apparmor 4.1.6-2`)
+- `libapparmor`: 1.24.3 (from `apparmor 4.1.6-2`)
 - Apache package: `apache 2.4.66-1`
 - Apache module: `/usr/lib/httpd/modules/mod_apparmor.so`
 - Module ownership: `mod_apparmor.so` provided by `apparmor 4.1.6-2`
-
-Packaging note (Arch): `mod_apparmor` may not be a standalone package name.
-The module can still be present and loadable (for example as
-`modules/mod_apparmor.so`) depending on how AppArmor support is provided on the
-host.
 
 Known good behavior:
 
