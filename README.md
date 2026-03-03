@@ -25,13 +25,15 @@ status.
 This project builds a shared library (`libaa_redirect.so`) that is loaded via
 `LD_PRELOAD`.
 
-At runtime, it intercepts exact opens of:
+At runtime, it intercepts opens of the legacy AppArmor attr path in two forms:
 
-`/proc/self/attr/current`
+- `/proc/self/attr/current` — the literal self form
+- `/proc/<PID>/attr/current` — the numeric-PID form, which `libapparmor` constructs via `getpid()`
 
-and redirects them to:
+Both are redirected to the corresponding AppArmor 4.x path:
 
-`/proc/self/attr/apparmor/current`
+- `/proc/self/attr/apparmor/current`
+- `/proc/<PID>/attr/apparmor/current`
 
 This allows affected userspace code paths (including `aa_change_hatv()` callers)
 to reach the correct AppArmor 4.x kernel interface without patching every caller
@@ -193,7 +195,7 @@ Known unsupported / no effect:
 ## Security and risk notes
 
 - This is a narrow runtime compatibility shim, not a policy bypass tool.
-- It rewrites only one exact path string and leaves all other file opens untouched.
+- It rewrites only the two legacy path forms described above and leaves all other file opens untouched.
 - Keep deployment scope minimal (only affected service units).
 - Treat as temporary operational mitigation until upstream package fix lands.
 

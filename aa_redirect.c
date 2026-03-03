@@ -2,24 +2,55 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
 /*
- * LD_PRELOAD shim: redirect exact path
- *   /proc/self/attr/current -> /proc/self/attr/apparmor/current
+ * LD_PRELOAD shim: redirect old AppArmor kernel interface path to new one.
+ *
+ * AppArmor 4.x moved hat-transition writes from:
+ *   /proc/self/attr/current          (or /proc/<PID>/attr/current)
+ * to:
+ *   /proc/self/attr/apparmor/current (or /proc/<PID>/attr/apparmor/current)
+ *
+ * libapparmor fixed aa_change_hat() but not aa_change_hatv(). Depending on
+ * the build, aa_change_hatv() may use the literal "self" string or getpid()
+ * to construct a numeric-PID path. Both forms are handled here.
  *
  * Designed to be tiny and "surgical".
  */
 
-static const char *FROM = "/proc/self/attr/current";
-static const char *TO   = "/proc/self/attr/apparmor/current";
+/* Thread-local buffer for dynamically constructed /proc/<PID>/... paths. */
+static __thread char _rewrite_buf[48];
 
 /* Thread-local recursion guard. */
 static __thread int in_hook = 0;
 
 static inline const char *rewrite_path(const char *path) {
-    if (path && strcmp(path, FROM) == 0) return TO;
+    if (!path) return path;
+
+    /* Case 1: literal self path */
+    if (strcmp(path, "/proc/self/attr/current") == 0)
+        return "/proc/self/attr/apparmor/current";
+
+    /* Case 2: numeric PID path — /proc/<digits>/attr/current
+     * libapparmor uses getpid() to construct the path, producing e.g.
+     * /proc/38696/attr/current instead of /proc/self/attr/current.
+     */
+    if (strncmp(path, "/proc/", 6) == 0) {
+        const char *p = path + 6;
+        const char *pid_start = p;
+        while (*p >= '0' && *p <= '9') p++;
+        if (p > pid_start && strcmp(p, "/attr/current") == 0) {
+            int n = snprintf(_rewrite_buf, sizeof(_rewrite_buf),
+                             "/proc/%.*s/attr/apparmor/current",
+                             (int)(p - pid_start), pid_start);
+            if (n > 0 && n < (int)sizeof(_rewrite_buf))
+                return _rewrite_buf;
+        }
+    }
+
     return path;
 }
 
